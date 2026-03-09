@@ -10,10 +10,14 @@ class ScanQrPage extends StatefulWidget {
     super.key,
     required this.onBack,
     required this.onOpenAsset,
+    this.onOpenHome,
+    this.onOpenProfile,
   });
 
   final VoidCallback onBack;
   final ValueChanged<String> onOpenAsset;
+  final VoidCallback? onOpenHome;
+  final VoidCallback? onOpenProfile;
 
   @override
   State<ScanQrPage> createState() => _ScanQrPageState();
@@ -139,6 +143,9 @@ class _ScanQrPageState extends State<ScanQrPage> {
 
   @override
   Widget build(BuildContext context) {
+    final showUserNavigation =
+        widget.onOpenHome != null && widget.onOpenProfile != null;
+
     return Scaffold(
       backgroundColor: const Color(0xFFE5E7EB),
       appBar: AppTopBar(title: 'Scan Barcode', onBack: widget.onBack),
@@ -157,6 +164,32 @@ class _ScanQrPageState extends State<ScanQrPage> {
           ),
         ),
       ),
+      bottomNavigationBar: showUserNavigation
+          ? BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              currentIndex: 1,
+              selectedItemColor: Colors.black,
+              unselectedItemColor: Colors.black,
+              onTap: (index) {
+                if (index == 0) {
+                  widget.onOpenHome?.call();
+                } else if (index == 2) {
+                  widget.onOpenProfile?.call();
+                }
+              },
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.search),
+                  label: 'Search',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            )
+          : null,
     );
   }
 

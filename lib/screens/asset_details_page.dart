@@ -18,6 +18,9 @@ class AssetDetailsPage extends StatefulWidget {
     required this.onBack,
     required this.onEdit,
     required this.onDeleted,
+    this.canEditDetails = true,
+    this.canDeleteAsset = true,
+    this.restrictStatusToUnderRepair = false,
   });
 
   final FirestoreRepository repository;
@@ -26,6 +29,9 @@ class AssetDetailsPage extends StatefulWidget {
   final VoidCallback onBack;
   final ValueChanged<String> onEdit;
   final VoidCallback onDeleted;
+  final bool canEditDetails;
+  final bool canDeleteAsset;
+  final bool restrictStatusToUnderRepair;
 
   @override
   State<AssetDetailsPage> createState() => _AssetDetailsPageState();
@@ -36,7 +42,9 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
 
   Future<void> _showUpdateStatusDialog(AssetRecord asset) async {
     final noteController = TextEditingController();
-    var selectedStatus = asset.status;
+    var selectedStatus = widget.restrictStatusToUnderRepair
+        ? 'under_repair'
+        : asset.status;
 
     try {
       await showDialog<void>(
@@ -92,34 +100,47 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                         ),
                       ),
                       const SizedBox(height: 14),
-                      _StatusOptionTile(
-                        title: 'Normal',
-                        description: 'Asset is functioning properly',
-                        icon: Icons.check_circle,
-                        iconColor: const Color(0xFF16A34A),
-                        selected: selectedStatus == 'normal',
-                        onTap: () => setState(() => selectedStatus = 'normal'),
-                      ),
-                      const SizedBox(height: 10),
-                      _StatusOptionTile(
-                        title: 'Under Repair',
-                        description: 'Asset is currently being serviced',
-                        icon: Icons.build,
-                        iconColor: const Color(0xFF2563EB),
-                        selected: selectedStatus == 'under_repair',
-                        onTap: () =>
-                            setState(() => selectedStatus = 'under_repair'),
-                      ),
-                      const SizedBox(height: 10),
-                      _StatusOptionTile(
-                        title: 'Disposed',
-                        description: 'Asset has been removed from inventory',
-                        icon: Icons.delete,
-                        iconColor: const Color(0xFFDC2626),
-                        selected: selectedStatus == 'disposed',
-                        onTap: () =>
-                            setState(() => selectedStatus = 'disposed'),
-                      ),
+                      if (widget.restrictStatusToUnderRepair)
+                        _StatusOptionTile(
+                          title: 'Under Repair',
+                          description: 'Send this asset to repair',
+                          icon: Icons.build,
+                          iconColor: const Color(0xFF2563EB),
+                          selected: true,
+                          onTap: () =>
+                              setState(() => selectedStatus = 'under_repair'),
+                        )
+                      else ...[
+                        _StatusOptionTile(
+                          title: 'Normal',
+                          description: 'Asset is functioning properly',
+                          icon: Icons.check_circle,
+                          iconColor: const Color(0xFF16A34A),
+                          selected: selectedStatus == 'normal',
+                          onTap: () =>
+                              setState(() => selectedStatus = 'normal'),
+                        ),
+                        const SizedBox(height: 10),
+                        _StatusOptionTile(
+                          title: 'Under Repair',
+                          description: 'Asset is currently being serviced',
+                          icon: Icons.build,
+                          iconColor: const Color(0xFF2563EB),
+                          selected: selectedStatus == 'under_repair',
+                          onTap: () =>
+                              setState(() => selectedStatus = 'under_repair'),
+                        ),
+                        const SizedBox(height: 10),
+                        _StatusOptionTile(
+                          title: 'Disposed',
+                          description: 'Asset has been removed from inventory',
+                          icon: Icons.delete,
+                          iconColor: const Color(0xFFDC2626),
+                          selected: selectedStatus == 'disposed',
+                          onTap: () =>
+                              setState(() => selectedStatus = 'disposed'),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       const Text(
                         'Notes (Optional)',
@@ -197,7 +218,9 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                                 Navigator.of(dialogContext).pop();
                                 await _updateStatus(
                                   assetCode: asset.assetCode,
-                                  status: selectedStatus,
+                                  status: widget.restrictStatusToUnderRepair
+                                      ? 'under_repair'
+                                      : selectedStatus,
                                   note: noteController.text.trim(),
                                 );
                               },
@@ -236,6 +259,11 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
     required String status,
     required String note,
   }) async {
+    if (widget.restrictStatusToUnderRepair && status != 'under_repair') {
+      _showMessage('You can only send assets to repair.');
+      return;
+    }
+
     setState(() => _isProcessing = true);
     try {
       await widget.repository.updateAssetStatus(
@@ -331,6 +359,9 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
         }
 
         final displayImageUrl = _resolveAssetImageUrl(asset.imageUrl);
+        final statusButtonText = widget.restrictStatusToUnderRepair
+            ? (_isProcessing ? 'Sending...' : 'Send to Repair')
+            : (_isProcessing ? 'Updating...' : 'Update Status');
 
         return Scaffold(
           backgroundColor: const Color(0xFFE5E7EB),
@@ -439,31 +470,35 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
                     ),
                   ),
                   const SizedBox(height: 18),
+                  if (widget.canEditDetails) ...[
+                    FilledBtnIcon(
+                      text: 'Edit Details',
+                      icon: Icons.edit_outlined,
+                      onPressed: _isProcessing
+                          ? null
+                          : () => widget.onEdit(asset.assetCode),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   FilledBtnIcon(
-                    text: 'Edit Details',
-                    icon: Icons.edit_outlined,
-                    onPressed: _isProcessing
-                        ? null
-                        : () => widget.onEdit(asset.assetCode),
-                  ),
-                  const SizedBox(height: 12),
-                  FilledBtnIcon(
-                    text: _isProcessing ? 'Updating...' : 'Update Status',
+                    text: statusButtonText,
                     icon: Icons.autorenew,
                     color: FilledBtnColor.gray,
                     onPressed: _isProcessing
                         ? null
                         : () => _showUpdateStatusDialog(asset),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedBtnIcon(
-                    text: 'Delete Asset',
-                    icon: Icons.delete,
-                    fontColor: OutlinedBtnFontColor.red,
-                    onPressed: _isProcessing
-                        ? null
-                        : () => _confirmDelete(asset),
-                  ),
+                  if (widget.canDeleteAsset) ...[
+                    const SizedBox(height: 12),
+                    OutlinedBtnIcon(
+                      text: 'Delete Asset',
+                      icon: Icons.delete,
+                      fontColor: OutlinedBtnFontColor.red,
+                      onPressed: _isProcessing
+                          ? null
+                          : () => _confirmDelete(asset),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -564,8 +599,10 @@ class _AssetDetailsPageState extends State<AssetDetailsPage> {
 
   Widget _buildAssetImage(String imageUrl) {
     final uri = Uri.tryParse(imageUrl);
-    final isNetwork = uri != null &&
-        (uri.scheme.toLowerCase() == 'http' || uri.scheme.toLowerCase() == 'https');
+    final isNetwork =
+        uri != null &&
+        (uri.scheme.toLowerCase() == 'http' ||
+            uri.scheme.toLowerCase() == 'https');
 
     if (isNetwork) {
       return Image.network(
